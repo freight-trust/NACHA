@@ -1,0 +1,7 @@
+# Generated examples
+examples/xsltproc-results/*
+examples/msxsl-results/*
+examples/xalanj-results/*
+
+# Local Netlify folder
+.netlify

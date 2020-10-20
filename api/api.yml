@@ -1,0 +1,607 @@
+openapi: 3.0.2
+info:
+    description: |
+        PayGate is a RESTful API enabling first-party Automated Clearing House ([ACH](https://en.wikipedia.org/wiki/Automated_Clearing_House)) transfers to be created without a deep understanding of a full NACHA file specification. First-party transfers initiate at an Originating Depository Financial Institution (ODFI) and are sent off to other Financial Institutions.
+
+        An organization is a value used to isolate models from each other. This can be set to a "user ID" from your authentication service or any value your system has to identify.
+
+        There are also [admin endpoints](https://moov-io.github.io/paygate/admin/) for back-office operations.
+    version: v1
+    title: Paygate API
+    contact:
+        url: https://github.com/moov-io/paygate
+    license:
+        name: Apache 2.0
+        url: http://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+    - url: http://localhost:8082
+      description: Local development
+
+tags:
+    - name: Monitor
+      description: API calls used to monitor the status of a PayGate instance
+    - name: Transfers
+      description: |
+          Transfer objects created to move funds between two Customers and their Accounts. The API allows you to create them, inspect their status and delete pending transfers.
+
+paths:
+    /ping:
+        get:
+            tags: [Monitor]
+            summary: Ping PayGate
+            description: Check the Customers service to check if running
+            operationId: ping
+            responses:
+                "200":
+                    description: Service is running properly
+    # Micro-Deposits
+    /micro-deposits:
+        post:
+            tags: [Validation]
+            summary: Initiate micro-deposits
+            description: Start micro-deposits for a Destination to validate.
+            operationId: initiateMicroDeposits
+            parameters:
+                - name: X-Organization
+                  in: header
+                  required: true
+                  description: Value used to separate and identify models
+                  schema:
+                      type: string
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/CreateMicroDeposits"
+            responses:
+                "200":
+                    description: Initiated micro-deposits for external account
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/MicroDeposits"
+                "400":
+                    description: Problem initiating micro-deposits, see error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "https://raw.githubusercontent.com/moov-io/base/master/api/common.yaml#/components/schemas/Error"
+    /micro-deposits/{microDepositID}:
+        get:
+            tags: [Validation]
+            summary: Get micro-deposit information
+            description: Retrieve the micro-deposits information for a specific microDepositID
+            operationId: getMicroDeposits
+            parameters:
+                - name: microDepositID
+                  in: path
+                  description: Identifier for micro-deposits
+                  required: true
+                  schema:
+                      type: string
+                      example: c336f57e
+                - name: X-Organization
+                  in: header
+                  required: true
+                  description: Value used to separate and identify models
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: micro-deposits for external account
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/MicroDeposits"
+                "400":
+                    description: Problem reading micro-deposits, see error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "https://raw.githubusercontent.com/moov-io/base/master/api/common.yaml#/components/schemas/Error"
+    /accounts/{accountID}/micro-deposits:
+        get:
+            tags: [Validation]
+            summary: Get micro-deposits for a specified accountID
+            description: Retrieve the micro-deposits information for a specific accountID
+            operationId: getAccountMicroDeposits
+            parameters:
+                - name: accountID
+                  in: path
+                  description: accountID identifier from Customers service
+                  required: true
+                  schema:
+                      type: string
+                      example: c336f57e
+                - name: X-Organization
+                  in: header
+                  required: true
+                  description: Value used to separate and identify models
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: micro-deposits for external account
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/MicroDeposits"
+                "400":
+                    description: Problem reading micro-deposits, see error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "https://raw.githubusercontent.com/moov-io/base/master/api/common.yaml#/components/schemas/Error"
+    # Transfers
+    /transfers:
+        get:
+            tags: [Transfers]
+            summary: List Transfers
+            description: List all Transfers created for the given organization.
+            operationId: getTransfers
+            parameters:
+                - name: skip
+                  in: query
+                  required: false
+                  description: The number of items to skip before starting to collect the result set
+                  schema:
+                      type: integer
+                      minimum: 0
+                      default: 0
+                - name: count
+                  in: query
+                  description: The number of items to return
+                  required: false
+                  schema:
+                      type: integer
+                      minimum: 0
+                      maximum: 100
+                      default: 25
+                      example: 10
+                - name: status
+                  in: query
+                  description: Return only Transfers in this TransferStatus
+                  required: false
+                  schema:
+                      $ref: "#/components/schemas/TransferStatus"
+                - name: startDate
+                  in: query
+                  description: |
+                      Return Transfers that are scheduled for this date or later in ISO-8601 format YYYY-MM-DD. Can optionally be used with endDate to specify a date range.
+                  schema:
+                      type: string
+                      format: date-time
+                      example: 2006-01-02T15:04:05Z07:00
+                - name: endDate
+                  in: query
+                  description: |
+                      Return Transfers that are scheduled for this date or earlier in ISO-8601 format YYYY-MM-DD. Can optionally be used with startDate to specify a date range.
+                  schema:
+                      type: string
+                      format: date-time
+                      example: 2006-01-02T15:04:05Z07:00
+                - name: organizationIDs
+                  in: query
+                  description: Comma separated list of organizationID values to return Transfer objects for.
+                  schema:
+                      type: string
+                      example: 0c1d0229,343fa5e2
+                - name: customerIDs
+                  in: query
+                  description: Comma separated list of customerID values to return Transfer objects for. A maximum of 25 IDs is allowed.
+                  schema:
+                      type: string
+                      example: c336f57e,476547a8
+                - name: X-Request-ID
+                  in: header
+                  description: Optional requestID allows application developer to trace requests through the systems logs
+                  example: rs4f9915
+                  schema:
+                      type: string
+                - name: X-Organization
+                  in: header
+                  required: true
+                  description: Value used to separate and identify models
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: A list of Transfer objects
+                    headers:
+                        X-Total-Count:
+                            description: The total number of Transfers
+                            schema:
+                                type: integer
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Transfers"
+                "400":
+                    description: Problem getting Transfer, see error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "https://raw.githubusercontent.com/moov-io/base/master/api/common.yaml#/components/schemas/Error"
+        post:
+            tags: [Transfers]
+            summary: Create Transfer
+            description: |
+                Create a new transfer between a Source and a Destination. Transfers can only be modified in the pending status.
+            operationId: addTransfer
+            parameters:
+                - name: X-Idempotency-Key
+                  in: header
+                  description: Idempotent key in the header which expires after 24 hours. These strings should contain enough entropy for to not collide with each other in your requests.
+                  example: a4f88150
+                  required: false
+                  schema:
+                      type: string
+                - name: X-Request-ID
+                  in: header
+                  description: Optional requestID allows application developer to trace requests through the systems logs
+                  example: rs4f9915
+                  schema:
+                      type: string
+                - name: X-Organization
+                  in: header
+                  required: true
+                  description: Value used to separate and identify models
+                  schema:
+                      type: string
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/CreateTransfer"
+            responses:
+                "201":
+                    description: Created
+                    headers:
+                        Location:
+                            description: The location of the new resource
+                            schema:
+                                type: string
+                                format: uri
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Transfer"
+                "400":
+                    description: Problem creating Transfer, see error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "https://raw.githubusercontent.com/moov-io/base/master/api/common.yaml#/components/schemas/Error"
+    /transfers/{transferID}:
+        get:
+            tags: [Transfers]
+            summary: Get Transfer
+            description: Get a Transfer object for the supplied organization
+            operationId: getTransferByID
+            parameters:
+                - name: transferID
+                  in: path
+                  description: transferID to retrieve
+                  required: true
+                  schema:
+                      type: string
+                      example: 33164ac6
+                - name: X-Request-ID
+                  in: header
+                  description: Optional requestID allows application developer to trace requests through the systems logs
+                  example: rs4f9915
+                  schema:
+                      type: string
+                - name: X-Organization
+                  in: header
+                  required: true
+                  description: Value used to separate and identify models
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: A transfer object for the supplied transferID sorted by their creation date descending.
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/Transfer"
+                "404":
+                    description: No Transfer with that transferID was found.
+        delete:
+            tags: [Transfers]
+            summary: Delete Transfer
+            description: |
+                Remove a transfer for the specified organization. Its status will be updated as transfer is processed.
+                It is only possible to delete (recall) a Transfer before it has been released from the financial institution.
+            operationId: deleteTransferByID
+            parameters:
+                - name: transferID
+                  in: path
+                  description: transferID to delete
+                  required: true
+                  schema:
+                      type: string
+                - name: X-Request-ID
+                  in: header
+                  description: Optional requestID allows application developer to trace requests through the systems logs
+                  example: rs4f9915
+                  schema:
+                      type: string
+                - name: X-Organization
+                  in: header
+                  required: true
+                  description: Value used to separate and identify models
+                  schema:
+                      type: string
+            responses:
+                "200":
+                    description: Transfer has been deleted.
+                "400":
+                    description: Problem deleting Transfer, see error
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "https://raw.githubusercontent.com/moov-io/base/master/api/common.yaml#/components/schemas/Error"
+
+components:
+    schemas:
+        CreateMicroDeposits:
+            properties:
+                destination:
+                    $ref: "#/components/schemas/Destination"
+            required:
+                - destination
+        MicroDeposits:
+            properties:
+                microDepositID:
+                    type: string
+                    example: 8e8cc27b
+                    description: A microDepositID to identify this set of credits to an external account
+                transferIDs:
+                    type: array
+                    items:
+                        type: string
+                        example: d2376d77
+                    description: An array of transferID values created from this micro-deposit
+                destination:
+                    $ref: "#/components/schemas/Destination"
+                amounts:
+                    type: array
+                    items:
+                        $ref: "#/components/schemas/Amount"
+                status:
+                    $ref: "#/components/schemas/TransferStatus"
+                processedAt:
+                    type: string
+                    format: date-time
+                    example: 2006-01-02T15:04:05Z07:00
+                    nullable: true
+                created:
+                    type: string
+                    format: date-time
+                    example: 2006-01-02T15:04:05Z07:00
+            required:
+                - microDepositID
+                - transferIDs
+                - destination
+                - amounts
+                - status
+                - created
+        Source:
+            description: Customer that initiates a Transfer
+            properties:
+                customerID:
+                    type: string
+                    example: 11ffa67d
+                    description: A customerID from the Customers service used as the source for this Transfer
+                accountID:
+                    type: string
+                    example: 68b534b7
+                    description: A accountID from the Customers service under the specified Customer used for this Transfer. If the Customer only has one account this value can be left empty.
+            required:
+                - customerID
+                - accountID
+        Destination:
+            description: Customer that is receiving a Transfer
+            properties:
+                customerID:
+                    type: string
+                    example: 11ffa67d
+                    description: A customerID from the Customers service used as source for this Transfer
+                accountID:
+                    type: string
+                    example: 68b534b7
+                    description: A accountID from the Customers service under the specified Customer used for this Transfer. If the Customer only has one account this value can be left empty.
+            required:
+                - customerID
+                - accountID
+        Amount:
+            properties:
+                currency:
+                    type: string
+                    example: USD
+                    description: A 3-letter ISO 4217 currency code
+                value:
+                    type: integer
+                    example: 1204
+                    description: Quantity in the smallest unit of the specified currency. In USD this is cents, so $12.04 is 1204 and $0.99 would be 99.
+            required:
+                - currency
+                - value
+        CreateTransfer:
+            description: |
+                These fields are used to initiate a Transfer between two Customer objects and their Accounts.
+            properties:
+                amount:
+                    $ref: "#/components/schemas/Amount"
+                source:
+                    $ref: "#/components/schemas/Source"
+                destination:
+                    $ref: "#/components/schemas/Destination"
+                description:
+                    type: string
+                    description: Brief description of the transaction, this will appear on the receiving entity’s financial statement.
+                    example: Loan Pay
+                    minLength: 1
+                    maxLength: 10
+                sameDay:
+                    type: boolean
+                    default: false
+                    description: When set to true this indicates the transfer should be processed the same day if possible.
+            required:
+                - amount
+                - source
+                - destination
+                - description
+        TransferStatus:
+            type: string
+            description: Defines the state of the Transfer
+            enum:
+                - canceled
+                - failed
+                - reviewable
+                - pending
+                - processed
+        Transfer:
+            properties:
+                transferID:
+                    type: string
+                    description: transferID to uniquely identify this Transfer
+                    example: 33164ac6
+                amount:
+                    $ref: "#/components/schemas/Amount"
+                source:
+                    $ref: "#/components/schemas/Source"
+                destination:
+                    $ref: "#/components/schemas/Destination"
+                description:
+                    type: string
+                    description: Brief description of the transaction, this will appear on the receiving entity’s financial statement.
+                    example: Loan Pay
+                    minLength: 1
+                    maxLength: 10
+                status:
+                    $ref: "#/components/schemas/TransferStatus"
+                sameDay:
+                    type: boolean
+                    default: false
+                    description: When set to true this indicates the transfer should be processed the same day if possible.
+                returnCode:
+                    $ref: "#/components/schemas/ReturnCode"
+                processedAt:
+                    type: string
+                    format: date-time
+                    example: 2006-01-02T15:04:05Z07:00
+                    nullable: true
+                created:
+                    type: string
+                    format: date-time
+                    example: 2006-01-02T15:04:05Z07:00
+                traceNumbers:
+                    type: array
+                    items:
+                        type: string
+            required:
+                - transferID
+                - amount
+                - source
+                - destination
+                - description
+                - status
+                - sameDay
+                - created
+                - traceNumbers
+        Transfers:
+            type: array
+            items:
+                $ref: "#/components/schemas/Transfer"
+        ReturnCode:
+            properties:
+                code:
+                    type: string
+                    description: Optional NACHA return code for this Transfer
+                    example: R02
+                reason:
+                    type: string
+                    description: Short NACHA description of return code
+                    example: Account Closed
+                description:
+                    type: string
+                    description: Long form explanation of return code
+                    example: Previously active account has been closed by customer or RDFI
+            nullable: true
+            required:
+                - code
+                - reason
+                - description
+        # CreateScheduledTransfer:
+        #   properties:
+        #     transfer:
+        #       $ref: '#/components/schemas/CreateTransfer'
+        #     originateAt:
+        #       type: string
+        #       format: date-time
+        #       example: 2006-01-02T15:04:05Z07:00
+        #     conditions:
+        #       $ref: '#/components/schemas/ScheduledTransferConditions'
+        #   required:
+        #     - transfer
+        #     - originateAt
+        # ScheduledTransfer:
+        #   properties:
+        #     transfer:
+        #       $ref: '#/components/schemas/Transfer'
+        #     originateAt:
+        #       type: string
+        #       format: date-time
+        #       example: 2006-01-02T15:04:05Z07:00
+        #     conditions:
+        #       $ref: '#/components/schemas/ScheduledTransferConditions'
+        #     returnCode:
+        #       $ref: '#/components/schemas/ReturnCode'
+        #   required:
+        #     - transfer
+        #     - originateAt
+        # ScheduledTransferConditions:
+        #   type: object
+        #   properties:
+        #     balanceOver:
+        #       type: array
+        #       items:
+        #         $ref: '#/components/schemas/AccountBalanceOver'
+        #     withoutNOCs:
+        #       type: array
+        #       items:
+        #         $ref: '#/components/schemas/TransferWithoutNOC'
+        #     withoutReturns:
+        #       type: array
+        #       items:
+        #         $ref: '#/components/schemas/TransferWithoutReturn'
+        # AccountBalanceOver:
+        #   properties:
+        #     accountID:
+        #       type: string
+        #       example: 1ffbc86d
+        #     balance:
+        #       type: string
+        #       example: 'USD 125.00'
+        #   required:
+        #     - accountID
+        #     - balance
+        # TransferWithoutNOC:
+        #   properties:
+        #     transferID:
+        #       type: string
+        #       example: c29bc565k
+        #   required:
+        #     - transferID
+        # TransferWithoutReturn:
+        #   properties:
+        #     transferID:
+        #       type: string
+        #       example: c29bc565k
+        #   required:
+        #     - transferID
